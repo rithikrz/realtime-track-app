@@ -9,10 +9,10 @@ const agentId = "agent-456";
 
 socket1.on("connect", () => {
   console.log("Socket 1 (Agent) connected:", socket1.id);
-  
+
   // Agent joins the order room
   socket1.emit("joinOrder", orderId);
-  
+
   // Wait a bit for the other socket to connect and join, then send location
   setTimeout(() => {
     console.log("Agent sending location update...");
@@ -27,7 +27,7 @@ socket1.on("connect", () => {
 
 socket2.on("connect", () => {
   console.log("Socket 2 (User) connected:", socket2.id);
-  
+
   // User joins the same order room
   socket2.emit("joinOrder", orderId);
 });
@@ -48,7 +48,7 @@ async function verifyHttpEndpoint() {
     const res = await fetch(`http://localhost:3001/api/location/${orderId}`);
     const data = await res.json();
     console.log("HTTP GET /api/location response:", data);
-    
+
     // Everything works, exit
     process.exit(0);
   } catch (error) {

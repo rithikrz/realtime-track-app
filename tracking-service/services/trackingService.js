@@ -2,23 +2,40 @@ const store = require('../store/inMemoryStore');
 
 /**
  * Validates incoming location payload
- * @param {Object} payload 
+ * @param {Object} payload
  * @returns {boolean}
  */
 const isValidLocationUpdate = (payload) => {
   if (!payload) return false;
-  
+
   const { orderId, agentId, lat, lng } = payload;
-  
+
   if (!orderId || typeof orderId !== 'string') return false;
   if (!agentId || typeof agentId !== 'string') return false;
-  
+
   if (lat === undefined || typeof lat !== 'number') return false;
   if (lng === undefined || typeof lng !== 'number') return false;
 
   // Validate lat/lng ranges
   if (lat < -90 || lat > 90) return false;
   if (lng < -180 || lng > 180) return false;
+
+  return true;
+};
+
+/**
+ * Validates incoming order location payload
+ * @param {Object} payload
+ * @returns {boolean}
+ */
+const isValidOrderLocationPayload = (payload) => {
+  if (!payload) return false;
+
+  const { orderId, pickupLocation, dropLocation } = payload;
+
+  if (!orderId || typeof orderId !== 'string' || !orderId.trim()) return false;
+  if (!pickupLocation || typeof pickupLocation !== 'string' || !pickupLocation.trim()) return false;
+  if (!dropLocation || typeof dropLocation !== 'string' || !dropLocation.trim()) return false;
 
   return true;
 };
@@ -34,7 +51,7 @@ const updateLocation = (payload) => {
   }
 
   const { orderId, agentId, lat, lng } = payload;
-  
+
   const locationRecord = {
     orderId,
     agentId,
@@ -43,13 +60,13 @@ const updateLocation = (payload) => {
   };
 
   store.setLocation(orderId, locationRecord);
-  
+
   return { data: locationRecord };
 };
 
 /**
  * Gets the latest location for an order
- * @param {string} orderId 
+ * @param {string} orderId
  * @returns {Object|null}
  */
 const getLocation = (orderId) => {
@@ -57,8 +74,46 @@ const getLocation = (orderId) => {
   return result || null;
 };
 
+/**
+ * Stores order pickup and drop location details
+ * @param {Object} payload { orderId, pickupLocation, dropLocation }
+ * @returns {Object} Stored order location details or error object
+ */
+const upsertOrderLocations = (payload) => {
+  if (!isValidOrderLocationPayload(payload)) {
+    return { error: 'Invalid order location payload' };
+  }
+
+  const orderLocationRecord = {
+    orderId: payload.orderId.trim(),
+    pickupLocation: payload.pickupLocation.trim(),
+    dropLocation: payload.dropLocation.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  store.setOrderLocations(orderLocationRecord.orderId, orderLocationRecord);
+  return { data: orderLocationRecord };
+};
+
+/**
+ * Gets order pickup/drop location details by order id
+ * @param {string} orderId
+ * @returns {Object|null}
+ */
+const getOrderLocations = (orderId) => {
+  if (!orderId || typeof orderId !== 'string' || !orderId.trim()) {
+    return null;
+  }
+
+  const result = store.getOrderLocations(orderId.trim());
+  return result || null;
+};
+
 module.exports = {
   updateLocation,
   getLocation,
-  isValidLocationUpdate
+  isValidLocationUpdate,
+  isValidOrderLocationPayload,
+  upsertOrderLocations,
+  getOrderLocations
 };

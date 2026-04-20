@@ -1,20 +1,10 @@
 import React, { useEffect } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, Polyline, useMap } from 'react-leaflet';
 
-const ROUTE_POINTS = [
-  { name: 'Delhi', lat: 28.6139, lng: 77.2090 },
-  { name: 'Karnal', lat: 29.6857, lng: 76.9905 },
-  { name: 'Ambala', lat: 30.3782, lng: 76.7767 },
-  { name: 'Mohali', lat: 30.7046, lng: 76.7179 },
-  { name: 'Chandigarh', lat: 30.7333, lng: 76.7794 },
-];
-
-const routePolyline = ROUTE_POINTS.map(({ lat, lng }) => [lat, lng]);
-
-// Default center (Delhi)
+// Default center (India)
 const defaultCenter = {
-  lat: 28.6139,
-  lng: 77.2090
+  lat: 22.9734,
+  lng: 78.6569
 };
 
 const RecenterMap = ({ center }) => {
@@ -27,8 +17,13 @@ const RecenterMap = ({ center }) => {
   return null;
 };
 
-const MapView = ({ agentLocation }) => {
-  const center = agentLocation || defaultCenter;
+const MapView = ({ agentLocation, routePoints = [] }) => {
+  const routePolyline = routePoints.map(({ lat, lng }) => [lat, lng]);
+  const pickupPoint = routePoints[0];
+  const dropPoint = routePoints[1];
+
+  const center = agentLocation
+    || (pickupPoint ? { lat: pickupPoint.lat, lng: pickupPoint.lng } : defaultCenter);
 
   return (
     <div className="leaflet-map-wrapper">
@@ -43,10 +38,37 @@ const MapView = ({ agentLocation }) => {
           attribution='&copy; OpenStreetMap contributors'
           url='https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
         />
-        <Polyline positions={routePolyline} pathOptions={{ color: '#334155', weight: 4, opacity: 0.7 }} />
+        {routePolyline.length >= 2 && (
+          <Polyline positions={routePolyline} pathOptions={{ color: '#334155', weight: 4, opacity: 0.7 }} />
+        )}
         <RecenterMap center={center} />
+
+        {pickupPoint && (
+          <CircleMarker
+            center={[pickupPoint.lat, pickupPoint.lng]}
+            radius={7}
+            pathOptions={{ color: '#16a34a', fillColor: '#16a34a', fillOpacity: 0.95 }}
+          >
+            <Popup>{pickupPoint.name}</Popup>
+          </CircleMarker>
+        )}
+
+        {dropPoint && (
+          <CircleMarker
+            center={[dropPoint.lat, dropPoint.lng]}
+            radius={7}
+            pathOptions={{ color: '#ea580c', fillColor: '#ea580c', fillOpacity: 0.95 }}
+          >
+            <Popup>{dropPoint.name}</Popup>
+          </CircleMarker>
+        )}
+
         {agentLocation && (
-          <CircleMarker center={center} radius={8} pathOptions={{ color: '#4F46E5', fillColor: '#4F46E5', fillOpacity: 0.95 }}>
+          <CircleMarker
+            center={center}
+            radius={8}
+            pathOptions={{ color: '#4F46E5', fillColor: '#4F46E5', fillOpacity: 0.95 }}
+          >
             <Popup>
               Agent location:
               {' '}

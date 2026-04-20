@@ -11,6 +11,7 @@
 class InMemoryStore {
   constructor() {
     this.locations = new Map();
+    this.orderLocations = new Map();
   }
 
   /**
@@ -46,6 +47,33 @@ class InMemoryStore {
    */
   hasLocation(orderId) {
     return this.locations.has(orderId);
+  }
+
+  /**
+   * Updates or sets pickup/drop location details for an order
+   * @param {string} orderId
+   * @param {Object} data
+   */
+  setOrderLocations(orderId, data) {
+    this.orderLocations.set(orderId, data);
+  }
+
+  /**
+   * Retrieves pickup/drop location details for an order
+   * @param {string} orderId
+   * @returns {Object|undefined}
+   */
+  getOrderLocations(orderId) {
+    return this.orderLocations.get(orderId);
+  }
+
+  /**
+   * Checks if order pickup/drop locations exist in the store
+   * @param {string} orderId
+   * @returns {boolean}
+   */
+  hasOrderLocations(orderId) {
+    return this.orderLocations.has(orderId);
   }
 }
 

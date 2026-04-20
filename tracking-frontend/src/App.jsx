@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { socket } from './services/socket';
 import MapView from './components/MapView';
 import AgentSimulator from './components/AgentSimulator';
-import { Package, Smartphone, RefreshCw } from 'lucide-react';
+import { MapPin, Package, Save, Smartphone } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
 function App() {
   const [orderId, setOrderId] = useState('order-123');
@@ -10,6 +12,12 @@ function App() {
 
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [agentLocation, setAgentLocation] = useState(null);
+  const [deliveryRoutePoints, setDeliveryRoutePoints] = useState([]);
+  const [pickupLocation, setPickupLocation] = useState('');
+  const [dropLocation, setDropLocation] = useState('');
+  const [isSavingLocations, setIsSavingLocations] = useState(false);
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false);
+  const [locationMessage, setLocationMessage] = useState('');
 
   // Connection Event Handlers
   useEffect(() => {
@@ -54,9 +62,85 @@ function App() {
 
     // Clear old state & start new one
     setAgentLocation(null);
+    setDeliveryRoutePoints([]);
     setOrderId(newOrderId);
     socket.emit('joinOrder', newOrderId);
   };
+
+  const handleSaveOrderLocations = async () => {
+    if (!orderId || !pickupLocation.trim() || !dropLocation.trim()) {
+      setLocationMessage('Order ID, pickup, and drop locations are required.');
+      return;
+    }
+
+    try {
+      setIsSavingLocations(true);
+      setLocationMessage('');
+
+      const response = await fetch(`${API_BASE_URL}/api/order-locations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: orderId.trim(),
+          pickupLocation: pickupLocation.trim(),
+          dropLocation: dropLocation.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save locations');
+      }
+
+      setPickupLocation(data.pickupLocation || '');
+      setDropLocation(data.dropLocation || '');
+      setLocationMessage('Delivery locations saved successfully.');
+    } catch (error) {
+      setLocationMessage(error.message || 'Failed to save locations');
+    } finally {
+      setIsSavingLocations(false);
+    }
+  };
+
+  useEffect(() => {
+    const trimmedOrderId = orderId.trim();
+    if (!trimmedOrderId) {
+      setPickupLocation('');
+      setDropLocation('');
+      setLocationMessage('');
+      return;
+    }
+
+    const fetchOrderLocations = async () => {
+      try {
+        setIsLoadingLocations(true);
+        setLocationMessage('');
+
+        const response = await fetch(`${API_BASE_URL}/api/order-locations/${encodeURIComponent(trimmedOrderId)}`);
+
+        if (response.status === 404) {
+          setPickupLocation('');
+          setDropLocation('');
+          return;
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch order locations');
+        }
+
+        setPickupLocation(data.pickupLocation || '');
+        setDropLocation(data.dropLocation || '');
+      } catch (error) {
+        setLocationMessage(error.message || 'Failed to fetch order locations');
+      } finally {
+        setIsLoadingLocations(false);
+      }
+    };
+
+    fetchOrderLocations();
+  }, [orderId]);
 
   return (
     <div className='app-container'>
@@ -85,6 +169,54 @@ function App() {
             />
           </div>
 
+          <div className='simulator-card'>
+            <div className='simulator-header'>
+              <MapPin size={20} style={{ color: 'var(--primary)' }} />
+              <span>Delivery Locations</span>
+            </div>
+
+            <div className='form-group'>
+              <label htmlFor='pickupLocation'>Pickup Location</label>
+              <input
+                className='input-field'
+                id='pickupLocation'
+                type='text'
+                value={pickupLocation}
+                onChange={(e) => setPickupLocation(e.target.value)}
+                placeholder='e.g. Delhi Sector 18'
+              />
+            </div>
+
+            <div className='form-group'>
+              <label htmlFor='dropLocation'>Drop Location</label>
+              <input
+                className='input-field'
+                id='dropLocation'
+                type='text'
+                value={dropLocation}
+                onChange={(e) => setDropLocation(e.target.value)}
+                placeholder='e.g. Chandigarh IT Park'
+              />
+            </div>
+
+            <button
+              className='btn btn-primary'
+              onClick={handleSaveOrderLocations}
+              disabled={isSavingLocations || isLoadingLocations || !orderId.trim()}
+              type='button'
+            >
+              <Save size={16} />
+              {isSavingLocations ? 'Saving...' : 'Save Locations'}
+            </button>
+
+            {isLoadingLocations && (
+              <p className='form-hint'>Loading saved locations...</p>
+            )}
+            {locationMessage && (
+              <p className='form-hint'>{locationMessage}</p>
+            )}
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.5rem' }}>
             <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>Connection Status</span>
             <div className={`status-badge ${isConnected ? 'connected' : ''}`}>
@@ -99,6 +231,9 @@ function App() {
               isConnected={isConnected}
               orderId={orderId}
               agentId={agentId}
+              pickupLocation={pickupLocation}
+              dropLocation={dropLocation}
+              onRouteResolved={setDeliveryRoutePoints}
             />
           </div>
         </div>
@@ -106,7 +241,10 @@ function App() {
 
       {/* Primary Map View */}
       <main className='map-container'>
-        <MapView agentLocation={agentLocation} />
+        <MapView
+          agentLocation={agentLocation}
+          routePoints={deliveryRoutePoints}
+        />
 
         {/* Floating Tracking Card Overlay */}
         {agentLocation && (

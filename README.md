@@ -43,7 +43,7 @@ cd ../tracking-frontend && npm install
 ### Backend (`tracking-service/.env`)
 
 ```env
-PORT=3001
+PORT=3002
 NODE_ENV=development
 CORS_ORIGIN=*
 ```
@@ -51,7 +51,8 @@ CORS_ORIGIN=*
 ### Frontend (`tracking-frontend/.env`)
 
 ```env
-VITE_SOCKET_URL=http://localhost:3001
+VITE_SOCKET_URL=http://localhost:3002
+VITE_API_URL=http://localhost:3002
 ```
 
 Note: Google Maps key is no longer required. The app now uses OpenStreetMap.
@@ -88,6 +89,8 @@ Frontend runs on `http://localhost:5173` by default.
 
 - `GET /api/health` - service health check
 - `GET /api/location/:orderId` - latest stored location for an order
+- `POST /api/order-locations` - add/update delivery pickup and drop locations for an order
+- `GET /api/order-locations/:orderId` - fetch saved pickup and drop locations for an order
 
 ## Socket Events
 
@@ -124,7 +127,7 @@ npm start
 - **Map not visible**
   - Ensure frontend is running and browser can access OpenStreetMap tiles.
 - **Disconnected status**
-  - Ensure backend is running on port `3001`.
+  - Ensure backend is running on port `3002`.
   - Ensure `VITE_SOCKET_URL` matches backend URL.
 - **Port already in use (`EADDRINUSE`)**
   - Stop previous process using the same port, then restart.

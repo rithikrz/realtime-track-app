@@ -2,39 +2,79 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Square, Activity } from 'lucide-react';
 import { socket } from '../services/socket';
 
-const ROUTE_POINTS = [
-  { name: 'Delhi', lat: 28.6139, lng: 77.2090 },
-  { name: 'Karnal', lat: 29.6857, lng: 76.9905 },
-  { name: 'Ambala', lat: 30.3782, lng: 76.7767 },
-  { name: 'Mohali', lat: 30.7046, lng: 76.7179 },
-  { name: 'Chandigarh', lat: 30.7333, lng: 76.7794 },
-];
-
 const STEPS_PER_SEGMENT = 10;
 
-const AgentSimulator = ({ orderId, agentId, isConnected }) => {
+const geocodeLocation = async (query) => {
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to geocode "${query}"`);
+  }
+
+  const results = await response.json();
+  if (!Array.isArray(results) || results.length === 0) {
+    throw new Error(`Location not found: ${query}`);
+  }
+
+  const first = results[0];
+  return {
+    lat: Number(first.lat),
+    lng: Number(first.lon),
+  };
+};
+
+const AgentSimulator = ({
+  orderId,
+  agentId,
+  isConnected,
+  pickupLocation,
+  dropLocation,
+  onRouteResolved
+}) => {
   const [isSimulating, setIsSimulating] = useState(false);
   const [lastLog, setLastLog] = useState(null);
 
-  const currentPos = useRef({ lat: ROUTE_POINTS[0].lat, lng: ROUTE_POINTS[0].lng });
+  const currentPos = useRef({ lat: 0, lng: 0 });
+  const routePointsRef = useRef([]);
   const segmentIndexRef = useRef(0);
   const stepInSegmentRef = useRef(0);
   const intervalRef = useRef(null);
 
-  const startSimulation = () => {
+  const startSimulation = async () => {
     if (!isConnected || !orderId || intervalRef.current) return;
+    if (!pickupLocation?.trim() || !dropLocation?.trim()) {
+      setLastLog('Please save pickup and drop locations first.');
+      return;
+    }
 
-    setIsSimulating(true);
+    try {
+      setLastLog('Resolving pickup/drop locations on map...');
 
-    // Reset route progress for each run and emit initial pickup location.
-    segmentIndexRef.current = 0;
-    stepInSegmentRef.current = 0;
-    currentPos.current = { lat: ROUTE_POINTS[0].lat, lng: ROUTE_POINTS[0].lng };
-    emitLocation(currentPos.current, 'Pickup started in Delhi');
+      const [pickupCoords, dropCoords] = await Promise.all([
+        geocodeLocation(pickupLocation.trim()),
+        geocodeLocation(dropLocation.trim()),
+      ]);
 
-    intervalRef.current = setInterval(() => {
-      sendTick();
-    }, 2000);
+      const routePoints = [
+        { name: `Pickup: ${pickupLocation.trim()}`, ...pickupCoords },
+        { name: `Drop: ${dropLocation.trim()}`, ...dropCoords },
+      ];
+      routePointsRef.current = routePoints;
+      onRouteResolved?.(routePoints);
+      setIsSimulating(true);
+
+      // Reset route progress for each run and emit initial pickup location.
+      segmentIndexRef.current = 0;
+      stepInSegmentRef.current = 0;
+      currentPos.current = { lat: routePoints[0].lat, lng: routePoints[0].lng };
+      emitLocation(currentPos.current, `Pickup started at ${pickupLocation.trim()}`);
+
+      intervalRef.current = setInterval(() => {
+        sendTick();
+      }, 2000);
+    } catch (error) {
+      setLastLog(error.message || 'Failed to resolve saved locations.');
+      onRouteResolved?.([]);
+    }
   };
 
   const stopSimulation = () => {
@@ -58,14 +98,20 @@ const AgentSimulator = ({ orderId, agentId, isConnected }) => {
   };
 
   const sendTick = () => {
-    if (segmentIndexRef.current >= ROUTE_POINTS.length - 1) {
-      setLastLog('Delivered in Chandigarh. Simulation completed.');
+    const routePoints = routePointsRef.current;
+    if (routePoints.length < 2) {
       stopSimulation();
       return;
     }
 
-    const from = ROUTE_POINTS[segmentIndexRef.current];
-    const to = ROUTE_POINTS[segmentIndexRef.current + 1];
+    if (segmentIndexRef.current >= routePoints.length - 1) {
+      setLastLog(`Delivered at ${dropLocation.trim()}. Simulation completed.`);
+      stopSimulation();
+      return;
+    }
+
+    const from = routePoints[segmentIndexRef.current];
+    const to = routePoints[segmentIndexRef.current + 1];
     const nextStep = stepInSegmentRef.current + 1;
     const progress = Math.min(nextStep / STEPS_PER_SEGMENT, 1);
 
@@ -96,7 +142,7 @@ const AgentSimulator = ({ orderId, agentId, isConnected }) => {
       </div>
       
       <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-        Demo route: Delhi {'->'} Mohali {'->'} Chandigarh. Start simulation to watch live movement.
+        Route from saved pickup to saved drop will be used for simulation.
       </p>
 
       {isSimulating ? (
